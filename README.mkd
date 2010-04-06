@@ -7,7 +7,8 @@ This a repository full of all kinds of CouchDB + node.js goodies. This is not, h
 To use the changes service:
 
 > cd changes
-> node service.js http://localhost:5984
+> node lib/service.js http://127.0.0.1:5984
+
 
 This will start the service, look for any design documents, and start any change listeners you've defined. It also checks every minute for new databases.
 
