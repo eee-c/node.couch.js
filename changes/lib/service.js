@@ -3,57 +3,63 @@ var listener = require('./listener'),
     events = require('events'),
     sys = require('sys'),
     path = require('path'),
-    posix = require('posix'),
+    posix = require('fs'),
     http = require('http');
 
-var loadModule = function (content, name) {
-  var p = new events.Promise();
+var loadModule = function (content, name, callback) {
+  //var p = new events.Promise();
   var wrapper = "(function (exports, require, module, __filename, __dirname) { "
               + content
               + "\n});";
   var exports = {};
   self = this;
   setTimeout( function () {
-    try {
+    // try {
       var compiledWrapper = process.compile(wrapper, name);
       compiledWrapper.apply(exports, [exports, require, self]);
-      p.emitSuccess(exports);
-    } catch (e) {
-      p.emitError(e)
-    }
+      callback(exports);
+      //p.emitSuccess(exports);
+    // } catch (e) {
+    //   p.emitError(e)
+    // }
   }, 0)
-  return p;
+  //return p;
 }
 
-var alldbs = function (port, hostname, pathname) {
-  var p = new events.Promise();
+var alldbs = function (port, hostname, pathname, callback) {
+  //var p = new events.Promise();
   var client = http.createClient(port, hostname);
-  var request = client.request('GET', pathname + '_all_dbs', {'accept':'application/json'});
-  request.finish(function(response){
+  var request = client.request('GET', pathname + '_all_dbs');
+  request.addListener('response', function(response) {
     var buffer = '';
-    response.addListener("body", function(data){buffer += data});
-    response.addListener("complete", function(){
+    response.addListener("data", function(data){buffer += data;});
+    response.addListener("end", function(){
       dbs = JSON.parse(buffer);
-      p.emitSuccess(dbs);
-    })
-  })
-  return p
-}
+      //p.emitSuccess(dbs);
+      callback(dbs);
+    });
+  });
+  request.close();
 
-var getDesignDoc = function (baseurl, dbname, id) {
-  var p = new events.Promise();
+  //return p;
+};
+
+var getDesignDoc = function (baseurl, dbname, id, callback) {
+  //var p = new events.Promise();
   var uri = url.parse(baseurl);
   var client = http.createClient(uri.port, uri.hostname)
   var request = client.request('GET', '/'+dbname+'/'+id, {'accept':'application/json'});
-  request.finish(function(response){
+  request.addListener('response', function(response){
     var buffer = '';
-    response.addListener("body", function(data){buffer += data});
-    response.addListener("complete", function(){
+    response.addListener("data", function(data){buffer += data});
+    response.addListener("end", function(){
       dbs = JSON.parse(buffer);
-      p.emitSuccess(dbs);
+      //p.emitSuccess(dbs);
+      callback(dbs);
     })
   })
-  return p;
+  request.close();
+  //return p;
 }
 
 var Deligation = function (baseurl) {
@@ -74,27 +80,29 @@ Deligation.prototype.designDocChange = function (dbname, id) {
       };
     })
   }
-    
+
   d.cleanup(dbname, id);
-  getDesignDoc(this.baseurl, dbname, id).addCallback(function(doc){
+  // getDesignDoc(this.baseurl, dbname, id).addCallback(function(doc){
+  //   d.handleDesignDoc(dbname, doc);
+  // });
+  getDesignDoc(this.baseurl, dbname, id, function(doc){
     d.handleDesignDoc(dbname, doc);
   });
 }
 Deligation.prototype.handleDesignDoc = function (dbname, doc) {
   var d = this;
   if (doc.changes) {
-    loadModule(doc.changes, dbname+'/'+doc._id+'.changes')
-      .addCallback(function(module) {
+    loadModule(doc.changes, dbname+'/'+doc._id+'.changes', function(module) {
         if (module.listener) {
           d.changes[dbname].addListener("change", module.listener);
         }
         d.modules[dbname+'/'+doc._id] = module;
-      })
-      .addErrback(function() {
-        sys.puts('Cannot import changes listener from '+JSON.stringify(doc._id));
-      })
+    });
+      // .addErrback(function() {
+      //   sys.puts('Cannot import changes listener from '+JSON.stringify(doc._id));
+      // });
   }
-}
+};
 Deligation.prototype.cleanup = function (dbname, id) {
   var d = this;
   var module = d.modules[dbname+'/'+id];
@@ -107,23 +115,25 @@ Deligation.prototype.cleanup = function (dbname, id) {
   }
 }
 
-var getDesignDocs = function (port, hostname, dbpath) {
-  var p = new events.Promise();
+var getDesignDocs = function (port, hostname, dbpath, callback) {
+  //var p = new events.Promise();
   var client = http.createClient(port, hostname);
   var ddocpath = dbpath+'/_all_docs?startkey=%22_design%2F%22&endkey=%22_design0%22';
   var request = client.request('GET', ddocpath, {'accept':'application/json'});
-  request.finish(function(response) {
+  request.addListener('response', function(response) {
     var buffer = '';
-    response.addListener("body", function(data){buffer += data});
-    response.addListener("complete", function(){
-      resp = JSON.parse(buffer);
-      docs = [];
-      resp.rows.forEach(function(doc) {docs.push(doc)})
-      p.emitSuccess(docs);
-    })  
-  })
-  return p;
-}
+    response.addListener("data", function(data){buffer += data;});
+    response.addListener("end", function(){
+      var resp = JSON.parse(buffer);
+      var docs = [];
+      resp.rows.forEach(function(doc) {docs.push(doc)});
+      //p.emitSuccess(docs);
+      callback(docs);
+    });
+  });
+  request.close();
+  //return p;
+};
 
 var inArray = function (array, obj) {
   for (i = 0; i < array.length; i+=1) {
@@ -143,36 +153,38 @@ var start = function (couchdbUrl, deligation) {
   if (href[href.length - 1] != '/') {
     href += '/';
   }
-  
+
   finished = [];
   if (!deligation) {
     var deligation = new Deligation(href);
   }
-  
+
   var attachAllDbs = function (dbs) {
     dbs.forEach(function(dbname) {
-      getDesignDocs(couchdbUrl.port, couchdbUrl.hostname, pathname+dbname)
-        .addCallback(function(docs) {
+      getDesignDocs(couchdbUrl.port, couchdbUrl.hostname, pathname+dbname, function(docs) {
+//        .addCallback(function(docs) {
           if (docs.length != 0) {
             docs.forEach(function(doc) {deligation.designDocChange(dbname, doc.id)})
-          } 
+          }
           finished.push(dbname);
           if (finished.length == dbs.length) {
             setInterval(function ()  {
-              alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname).addCallback(function(dbs) {
+	      alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname, function(dbs) {
                   var newdbs = [];
                   dbs.forEach( function(db) {
                     if (!deligation.changes[db]) { newdbs.push(db) }
                   });
                   attachAllDbs(newdbs);
-              })  
+              })
             }, 60 * 1000);
           }
         })
     })
-  }  
-      
-  alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname).addCallback(attachAllDbs)
+  }
+
+  // Deprecated promise-based call:
+  // alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname).addCallback(attachAllDbs)
+  alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname, attachAllDbs)
 }
 
 exports.start = start;

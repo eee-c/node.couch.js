@@ -1,29 +1,29 @@
 var sys = require('sys'),
-    http = require('http'), 
+    http = require('http'),
     url = require('url'),
     events = require('events'),
     querystring = require("querystring");
 
-String.prototype.startsWith = function(str) {return (this.match("^"+str)==str)}
-String.prototype.endsWith = function(str) {return (this.match(str+"$")==str)};
+String.prototype.startsWith = function(str) {return (this.match("^"+str)==str);};
+String.prototype.endsWith = function(str) {return (this.match(str+"$")==str);};
 
 var Changes = function (uri, options) {
   // Accepts db name or url to _changes
   if (!uri.endsWith('_changes')) {
-    if (!uri.endsWith('/')) { uri += '/'};
+    if (!uri.endsWith('/')) { uri += '/'; }
     uri += '_changes';
   }
   if (!options) {
-    var options = {}
+    var options = {};
   }
-  options.feed = 'continuous'
+  options.feed = 'continuous';
   this.url = url.parse(uri);
   this.options = options;
   this.h = http.createClient(this.url.port, url.host);
-  this.buffer = ''
+  this.buffer = '';
   var c = this;
   // sys.puts(this.url.pathname+'?'+querystring.stringify(options))
-  
+
   var changesHandler = function (data) {
     if (data.indexOf('\n')) {
       var chunks = data.split('\n');
@@ -42,43 +42,47 @@ var Changes = function (uri, options) {
       var chunk = chunks[i];
       if (chunk) {
         try {
+	  sys.puts(chunk);
           var obj = JSON.parse(chunk);
         } catch(e) {
           if (i != (chunks.length -1)) {
             throw "For some reason I think this is a chunk "+chunk;
           } else {
             c.buffer = chunk;
-          } 
+          }
         }
         if (obj) { c.emit('change', obj); }
-      } 
+      }
     }
-  }
-  
+  };
+
   var start = function () {
-    c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options), {'accept':'application/json'})
-      .finish(function(response) {response.addListener('body', changesHandler)});
-  }
-  
+    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options), {'accept':'application/json'});
+    request.addListener('response', function(response) {response.addListener('data', changesHandler);});
+    request.close();
+  };
+
   if (!options.since) {
-    var getSeq = function () {
-      var p = new events.Promise();
-      c.h.request("GET", c.url.pathname.replace('/_changes', ''), {'accept':'application/json'})
-        .finish(function(response) {
-          buffer = '';
-          response.addListener("body", function(data){buffer += data;})
-          response.addListener("complete", function () {
-            options.since = JSON.parse(buffer)['update_seq'];
-            p.emitSuccess();
-          })
-        })
-      return p;
-    }
-    getSeq().addCallback(start)
+    var getSeq = function (callback) {
+      // var p = new events.Promise();
+      var request = c.h.request("GET", c.url.pathname.replace('/_changes', ''), {'accept':'application/json'});
+      request.addListener('response', function(response) {
+	buffer = '';
+	response.addListener("data", function(data){buffer += data;});
+        response.addListener("end", function () {
+	  options.since = JSON.parse(buffer)['update_seq'];
+          // p.emitSuccess();
+	  callback();
+	});
+      });
+      request.close();
+      // return p;
+    };
+    getSeq(start);
   } else {
-    start()
+    start();
   }
-}
+};
 sys.inherits(Changes, process.EventEmitter);
 
 exports.Changes = Changes;
