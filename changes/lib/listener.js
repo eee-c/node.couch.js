@@ -64,19 +64,16 @@ var Changes = function (uri, options) {
 
   if (!options.since) {
     var getSeq = function (callback) {
-      // var p = new events.Promise();
       var request = c.h.request("GET", c.url.pathname.replace('/_changes', ''), {'accept':'application/json'});
       request.addListener('response', function(response) {
 	buffer = '';
 	response.addListener("data", function(data){buffer += data;});
         response.addListener("end", function () {
 	  options.since = JSON.parse(buffer)['update_seq'];
-          // p.emitSuccess();
 	  callback();
 	});
       });
       request.close();
-      // return p;
     };
     getSeq(start);
   } else {

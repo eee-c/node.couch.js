@@ -7,27 +7,19 @@ var listener = require('./listener'),
     http = require('http');
 
 var loadModule = function (content, name, callback) {
-  //var p = new events.Promise();
   var wrapper = "(function (exports, require, module, __filename, __dirname) { "
               + content
               + "\n});";
   var exports = {};
   self = this;
   setTimeout( function () {
-    // try {
-      var compiledWrapper = process.compile(wrapper, name);
-      compiledWrapper.apply(exports, [exports, require, self]);
-      callback(exports);
-      //p.emitSuccess(exports);
-    // } catch (e) {
-    //   p.emitError(e)
-    // }
-  }, 0)
-  //return p;
-}
+    var compiledWrapper = process.compile(wrapper, name);
+    compiledWrapper.apply(exports, [exports, require, self]);
+    callback(exports);
+  }, 0);
+};
 
 var alldbs = function (port, hostname, pathname, callback) {
-  //var p = new events.Promise();
   var client = http.createClient(port, hostname);
   var request = client.request('GET', pathname + '_all_dbs');
   request.addListener('response', function(response) {
@@ -35,32 +27,26 @@ var alldbs = function (port, hostname, pathname, callback) {
     response.addListener("data", function(data){buffer += data;});
     response.addListener("end", function(){
       dbs = JSON.parse(buffer);
-      //p.emitSuccess(dbs);
       callback(dbs);
     });
   });
   request.close();
-
-  //return p;
 };
 
 var getDesignDoc = function (baseurl, dbname, id, callback) {
-  //var p = new events.Promise();
   var uri = url.parse(baseurl);
-  var client = http.createClient(uri.port, uri.hostname)
+  var client = http.createClient(uri.port, uri.hostname);
   var request = client.request('GET', '/'+dbname+'/'+id, {'accept':'application/json'});
   request.addListener('response', function(response){
     var buffer = '';
-    response.addListener("data", function(data){buffer += data});
+    response.addListener("data", function(data){buffer += data;});
     response.addListener("end", function(){
       dbs = JSON.parse(buffer);
-      //p.emitSuccess(dbs);
       callback(dbs);
-    })
-  })
+    });
+  });
   request.close();
-  //return p;
-}
+};
 
 var Deligation = function (baseurl) {
   if (baseurl[baseurl.length - 1] != '/') {
@@ -69,7 +55,7 @@ var Deligation = function (baseurl) {
   this.baseurl = baseurl;
   this.modules = {};
   this.changes = {};
-}
+};
 Deligation.prototype.designDocChange = function (dbname, id) {
   var d = this;
   if (!this.changes[dbname]) {
@@ -78,17 +64,14 @@ Deligation.prototype.designDocChange = function (dbname, id) {
       if (doc.id && doc.id.startsWith('_design')) {
         d.designDocChange(dbname, doc.id);
       };
-    })
+    });
   }
 
   d.cleanup(dbname, id);
-  // getDesignDoc(this.baseurl, dbname, id).addCallback(function(doc){
-  //   d.handleDesignDoc(dbname, doc);
-  // });
   getDesignDoc(this.baseurl, dbname, id, function(doc){
     d.handleDesignDoc(dbname, doc);
   });
-}
+};
 Deligation.prototype.handleDesignDoc = function (dbname, doc) {
   var d = this;
   if (doc.changes) {
@@ -98,9 +81,6 @@ Deligation.prototype.handleDesignDoc = function (dbname, doc) {
         }
         d.modules[dbname+'/'+doc._id] = module;
     });
-      // .addErrback(function() {
-      //   sys.puts('Cannot import changes listener from '+JSON.stringify(doc._id));
-      // });
   }
 };
 Deligation.prototype.cleanup = function (dbname, id) {
@@ -108,15 +88,14 @@ Deligation.prototype.cleanup = function (dbname, id) {
   var module = d.modules[dbname+'/'+id];
   if (module) {
     if (module.listener) {
-      d.changes[dbname].removeListener("change", module.listener)
+      d.changes[dbname].removeListener("change", module.listener);
     }
-    delete module
+    delete module;
     delete d.modules[dbname+'/'+id];
   }
-}
+};
 
 var getDesignDocs = function (port, hostname, dbpath, callback) {
-  //var p = new events.Promise();
   var client = http.createClient(port, hostname);
   var ddocpath = dbpath+'/_all_docs?startkey=%22_design%2F%22&endkey=%22_design0%22';
   var request = client.request('GET', ddocpath, {'accept':'application/json'});
@@ -126,13 +105,11 @@ var getDesignDocs = function (port, hostname, dbpath, callback) {
     response.addListener("end", function(){
       var resp = JSON.parse(buffer);
       var docs = [];
-      resp.rows.forEach(function(doc) {docs.push(doc)});
-      //p.emitSuccess(docs);
+      resp.rows.forEach(function(doc) {docs.push(doc);});
       callback(docs);
     });
   });
   request.close();
-  //return p;
 };
 
 var inArray = function (array, obj) {
@@ -142,7 +119,7 @@ var inArray = function (array, obj) {
     }
   }
   return false;
-}
+};
 
 var start = function (couchdbUrl, deligation) {
   var pathname = couchdbUrl.pathname || '/';
@@ -162,30 +139,27 @@ var start = function (couchdbUrl, deligation) {
   var attachAllDbs = function (dbs) {
     dbs.forEach(function(dbname) {
       getDesignDocs(couchdbUrl.port, couchdbUrl.hostname, pathname+dbname, function(docs) {
-//        .addCallback(function(docs) {
-          if (docs.length != 0) {
-            docs.forEach(function(doc) {deligation.designDocChange(dbname, doc.id)})
-          }
-          finished.push(dbname);
-          if (finished.length == dbs.length) {
-            setInterval(function ()  {
-	      alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname, function(dbs) {
-                  var newdbs = [];
-                  dbs.forEach( function(db) {
-                    if (!deligation.changes[db]) { newdbs.push(db) }
-                  });
-                  attachAllDbs(newdbs);
-              })
-            }, 60 * 1000);
-          }
-        })
-    })
-  }
+	if (docs.length != 0) {
+          docs.forEach(function(doc) {deligation.designDocChange(dbname, doc.id);});
+        }
+        finished.push(dbname);
+        if (finished.length == dbs.length) {
+          setInterval(function ()  {
+	    alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname, function(dbs) {
+              var newdbs = [];
+	      dbs.forEach( function(db) {
+		if (!deligation.changes[db]) { newdbs.push(db); }
+              });
+              attachAllDbs(newdbs);
+	    });
+          }, 60 * 1000);
+        }
+      });
+    });
+  };
 
-  // Deprecated promise-based call:
-  // alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname).addCallback(attachAllDbs)
-  alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname, attachAllDbs)
-}
+  alldbs(couchdbUrl.port, couchdbUrl.hostname, pathname, attachAllDbs);
+};
 
 exports.start = start;
 exports.Deligation = Deligation;
