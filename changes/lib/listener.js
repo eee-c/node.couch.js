@@ -42,7 +42,6 @@ var Changes = function (uri, options) {
       var chunk = chunks[i];
       if (chunk) {
         try {
-	  sys.puts(chunk);
           var obj = JSON.parse(chunk);
         } catch(e) {
           if (i != (chunks.length -1)) {
