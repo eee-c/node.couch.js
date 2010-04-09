@@ -56,7 +56,7 @@ var Changes = function (uri, options) {
   };
 
   var start = function () {
-    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options)+'&timeout=600000', {'accept':'application/json'});
+    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options)+'&timeout=600000&heartbeat=600000', {'accept':'application/json'});
     request.addListener('response', function(response) {response.addListener('data', changesHandler);});
     request.close();
   };
