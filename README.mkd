@@ -10,7 +10,9 @@ To use the changes service:
 > node lib/service.js http://127.0.0.1:5984
 
 
-This will start the service, look for any design documents, and start any change listeners you've defined. It also checks every minute for new databases.
+This will start the service, look for any design documents, and start any change listeners you've defined.  It will listen for 10 minutes before the HTTP keepalive expires.
+
+It also checks every minute for new databases.
 
 To define a new listener in your design doc:
 
