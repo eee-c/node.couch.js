@@ -19,7 +19,7 @@ var Changes = function (uri, options) {
   options.feed = 'continuous';
   this.url = url.parse(uri);
   this.options = options;
-  this.h = http.createClient(this.url.port, url.host);
+  this.h = http.createClient(this.url.port, this.url.hostname);
   this.buffer = '';
   var c = this;
   // sys.puts(this.url.pathname+'?'+querystring.stringify(options))
@@ -56,7 +56,7 @@ var Changes = function (uri, options) {
   };
 
   var start = function () {
-    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options)+'&timeout=600000&heartbeat=600000', {'accept':'application/json'});
+    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options)+'&heartbeat=600000', {'accept':'application/json'});
     request.addListener('response', function(response) {response.addListener('data', changesHandler);});
     request.close();
   };
