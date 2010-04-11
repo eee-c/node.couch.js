@@ -14,7 +14,7 @@ var Changes = function (uri, options) {
     uri += '_changes';
   }
   if (!options) {
-    var options = {};
+    var options = {heartbeat:20*1000};
   }
   options.feed = 'continuous';
   this.url = url.parse(uri);
@@ -56,7 +56,7 @@ var Changes = function (uri, options) {
   };
 
   var start = function () {
-    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options)+'&heartbeat=600000', {'accept':'application/json'});
+    var request = c.h.request("GET", c.url.pathname+'?'+querystring.stringify(options), {'accept':'application/json'});
     request.addListener('response', function(response) {response.addListener('data', changesHandler);});
     request.close();
   };
